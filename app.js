@@ -1,5 +1,5 @@
 'use strict'
-this.app = app || {}
+this.app = this.app || {}
 (async (_) => {
   console.debug('loading...')
 
