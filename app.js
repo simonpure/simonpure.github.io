@@ -70,9 +70,15 @@ this.app = this.app || {};
     }
 
     const updateState = async () => {
-      await process(state.user.submitted.map(e => item(e)))
-          .then(result => result.filter(({ title }) => title))
-          .then(stories => state.stories = stories)
+      state.stories = []
+      await process(
+          state.user.submitted.map(e => item(e)),
+          (chunk) => {
+            state.stories = state.stories.concat(chunk.filter(({ title }) => title))
+            setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
+          }
+        ).then(result => result.filter(({ title }) => title))
+         .then(stories => state.stories = stories)
 
       const updateComments = async (items) => {
         if (!items || !items.length) return
@@ -108,14 +114,17 @@ this.app = this.app || {};
         <ul>
           ${ids ?
               ids.map(id => state[id])
+                .filter(comment => comment && comment.id)
                 .map((comment) => components.comment(comment) + components.comments(comment.kids))
                 .join('<hr>')
               : ''}
         </ul>`,
       story: ({ by, id, descendants, score, time, title, type, url, kids }) => `
         <div>
-          ${components.url('https://news.ycombinator.com/item?id=' + id, score)} -
-          ${components.url(url, title)} - ${descendants}
+          <h2>
+            <small>${components.url('https://news.ycombinator.com/item?id=' + id, score)}</small>
+            ${components.url(url ? url : 'https://news.ycombinator.com/item?id=' + id, title)}
+          </h1>
           <hr>
           ${kids ? components.comments(kids) + '<hr>' : ''}
         </div>`
