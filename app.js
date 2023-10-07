@@ -138,6 +138,8 @@ this.app = this.app || {};
 
     state.user = await slurp(user(params.user))
 
+    document.title = `Hacker News (${params.user})`
+
     await updateState()
     await render(document.querySelector('#container'), components, state)
 
