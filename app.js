@@ -124,7 +124,8 @@ this.app = this.app || {};
           <h2>
             <small>${components.url('https://news.ycombinator.com/item?id=' + id, score)}</small>
             ${components.url(url ? url : 'https://news.ycombinator.com/item?id=' + id, title)}
-          </h1>
+            <small>${cache[time] = cache[time] || new Date(time * 1000).toLocaleString().split(',')[0]}</small>
+          </h2>
           <hr>
           ${kids ? components.comments(kids) + '<hr>' : ''}
         </div>`
