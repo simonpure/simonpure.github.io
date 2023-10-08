@@ -12,6 +12,9 @@ this.app = this.app || {};
   try {
     const BASE = 'https://hacker-news.firebaseio.com';
     const VERSION = `v0`
+    const BATCH_SIZE = 100
+
+    const DEFAULT_PARAMS = { user: 'simonpure', filter: 'Blog HN' }
 
     const cache = app.cache || {}
     const state = app.state || {}
@@ -40,7 +43,7 @@ this.app = this.app || {};
     const process = async (urls, cb = (e) => e) => {
       console.debug('processing ', urls.length)
       let result = []
-      for await (const chunk of batch(urls, 100)) {
+      for await (const chunk of batch(urls, BATCH_SIZE)) {
         cb(chunk)
         result = result.concat(chunk)
       }
@@ -69,16 +72,14 @@ this.app = this.app || {};
         </div>`
     }
 
-    const updateState = async () => {
+    const updateState = async (state, text) => {
       state.stories = []
-      await process(
-          state.user.submitted.map(e => item(e)),
-          (chunk) => {
-            state.stories = state.stories.concat(chunk.filter(({ title }) => title))
-            setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
-          }
-        ).then(result => result.filter(({ title }) => title))
-         .then(stories => state.stories = stories)
+
+      const filter = (xs) => text.length ?
+        xs.filter(({ title }) => title)
+          .filter(({ title }) => title.startsWith(text))
+        :
+        xs.filter(({ title }) => title)
 
       const updateComments = async (items) => {
         if (!items || !items.length) return
@@ -90,6 +91,18 @@ this.app = this.app || {};
           updateComments(comments.filter(({ kids }) => kids))
         })
       }
+
+      await process(
+          state.user.submitted.map(e => item(e)),
+          (chunk) => {
+            const stories = filter(chunk)
+            state.stories = state.stories.concat(stories)
+            setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
+            //setTimeout(async () => await updateComments(stories), 0)
+          }
+        ).then(result => filter(result))
+         .then(stories => state.stories = stories)
+
       await updateComments(state.stories)
     }
 
@@ -132,16 +145,17 @@ this.app = this.app || {};
     }
 
 
-    const defaultParams = {user: 'simonpure'}
-
     const search = window.location.search.replace('?', '')
-    const params = search.length ? Object.fromEntries(search.split('&').map(e => e.split('='))) : defaultParams
+    const params = search.length ?
+      Object.assign(DEFAULT_PARAMS,
+        Object.fromEntries(search.split('&').map(e => e.split('=')).map(([k, v]) => [k, decodeURIComponent(v)])))
+        : DEFAULT_PARAMS
 
     state.user = await slurp(user(params.user))
 
     document.title = `Hacker News (${params.user})`
 
-    await updateState()
+    await updateState(state, params.filter)
     await render(document.querySelector('#container'), components, state)
 
     Object.assign(app, {
@@ -149,7 +163,8 @@ this.app = this.app || {};
       slurp, process,
       url, item, user, maxitem, topstories, updates,
       updateState,
-      components, render
+      components, render,
+      params
     })
 
     console.debug('done')
@@ -161,7 +176,7 @@ this.app = this.app || {};
 
 this.reload = () => {
   const el = document.createElement('script')
-  el.src = 'app.js'
+  el.src = `app.js?${Date.now()}`
   el.addEventListener('load', (_) => console.debug('reloaded'))
   document.head.appendChild(el)
 }
