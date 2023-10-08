@@ -14,7 +14,7 @@ this.app = this.app || {};
     const VERSION = `v0`
     const BATCH_SIZE = 100
 
-    const DEFAULT_PARAMS = { user: 'simonpure', filter: 'Blog HN' }
+    const DEFAULT_PARAMS = { user: 'simonpure', filter: '' }
 
     const cache = app.cache || {}
     const state = app.state || {}
@@ -76,18 +76,20 @@ this.app = this.app || {};
       state.stories = []
 
       const filter = (xs) => text.length ?
-        xs.filter(({ title }) => title)
+        xs.filter(({ title, text }) => title && text)
           .filter(({ title }) => title.startsWith(text))
         :
-        xs.filter(({ title }) => title)
+        xs.filter(({ title, text }) => title && text)
 
       const updateComments = async (items) => {
         if (!items || !items.length) return
         process(
           items.filter(({ kids }) => kids).map(({ kids }) => kids.map(e => item(e))).flat()
         ).then(comments => {
-          comments.forEach(comment => state[comment.id] = comment)
-          setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
+          if (comments.length) {
+            comments.forEach(comment => state[comment.id] = comment)
+            setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
+          }
           updateComments(comments.filter(({ kids }) => kids))
         })
       }
@@ -97,8 +99,9 @@ this.app = this.app || {};
           (chunk) => {
             const stories = filter(chunk)
             state.stories = state.stories.concat(stories)
-            setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
-            //setTimeout(async () => await updateComments(stories), 0)
+            if (stories.length) {
+              setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
+            }
           }
         ).then(result => filter(result))
          .then(stories => state.stories = stories)
@@ -119,9 +122,9 @@ this.app = this.app || {};
       comment: ({ by, id, kids, parent, text, time, type, deleted }) => `
         <li>
           <div>
-            ${text}
+            ${text || 'deleted'}
           </div>
-          <small>${by}</small>
+          <small>${by || 'deleted'}</small>
         </li>`,
       comments: (ids) => `
         <ul>
@@ -132,15 +135,19 @@ this.app = this.app || {};
                 .join('<hr>')
               : ''}
         </ul>`,
-      story: ({ by, id, descendants, score, time, title, type, url, kids }) => `
+      story: ({ by, id, descendants, score, time, title, text, type, url, kids }) => `
         <div>
           <h2>
             <small>${components.url('https://news.ycombinator.com/item?id=' + id, score)}</small>
             ${components.url(url ? url : 'https://news.ycombinator.com/item?id=' + id, title)}
             <small>${cache[time] = cache[time] || new Date(time * 1000).toLocaleString().split(',')[0]}</small>
           </h2>
+					<p>${text || ''}</p>
           <hr>
-          ${kids ? components.comments(kids) + '<hr>' : ''}
+          <details>
+            <summary><small>${(kids || []).length}</small></summary>
+            ${kids ? components.comments(kids) + '<hr>' : ''}
+          </details>
         </div>`
     }
 
