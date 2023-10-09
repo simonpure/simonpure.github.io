@@ -63,13 +63,27 @@ this.app = this.app || {};
     const updates = url.bind(null, null, 'updates') 
 
     const render = async (container, components, state) => {
-      container.innerHTML = `
-        <div>
-          ${components.user(state.user)}
-          <ul>
-            ${state.stories.map(story => '<li>' + components.story(story) + '</li>').join('')}
-          </ul>
-        </div>`
+      const user = container.querySelector(`#id-${state.user.id}`)
+      if (!user) {
+        container.querySelector('#user').innerHTML = components.user(state.user)
+      }
+
+      const stories = state.stories
+          .filter(story => !container.querySelector(`#id-${story.id}`))
+          .map(story => components.story(story))
+          .join('')
+      if (stories.length) {
+        container.querySelector('#stories').innerHTML += stories
+      }
+
+      Object.values(state)
+        .filter(({ type }) => type === 'comment')
+        .filter(comment => !container.querySelector(`#id-${comment.id} .empty`))
+        .forEach(comment => {
+          const el = container.querySelector(`#id-${comment.id}`)
+          el.innerHTML = components.comment(comment)
+          el.classList.remove('.emtpy')
+        })
     }
 
     const updateState = async (state, text) => {
@@ -98,6 +112,7 @@ this.app = this.app || {};
           state.user.submitted.map(e => item(e)),
           (chunk) => {
             const stories = filter(chunk)
+            stories.forEach(story => state[story.id] = story)
             state.stories = state.stories.concat(stories)
             if (stories.length) {
               setTimeout(async () => await render(document.querySelector('#container'), components, state), 0)
@@ -114,29 +129,33 @@ this.app = this.app || {};
     const components = {
       url: (url, title) => `<a href="${url}" target="_blank">${title}</a>`,
       user: ({ about, created, id, karma, submitted }) => `
-        <div>
+        <div id="id-${id}" class="user">
           <b>${id}</b>
           <small>${karma}</small>
           <p>${about}</p>
         </div>`,
       comment: ({ by, id, kids, parent, text, time, type, deleted }) => `
-        <li>
+        <div>
           <div>
             ${text || 'deleted'}
           </div>
           <small>${by || 'deleted'}</small>
-        </li>`,
+          <ul>
+            ${ (kids || []).map(kid => '<li id="id-' + kid + '" class="empty"></li>').join('') }
+          </ul>
+        </div>`,
       comments: (ids) => `
-        <ul>
-          ${ids ?
-              ids.map(id => state[id])
-                .filter(comment => comment && comment.id)
-                .map((comment) => components.comment(comment) + components.comments(comment.kids))
-                .join('<hr>')
+          ${ids && ids.length ?
+              '<ul>' +
+                ids.map(id => state[id])
+                  .filter(comment => comment && comment.id)
+                  .map((comment) => components.comment(comment) + components.comments(comment.kids))
+                  .join('<hr>') +
+              '</ul>'
               : ''}
-        </ul>`,
+        `,
       story: ({ by, id, descendants, score, time, title, text, type, url, kids }) => `
-        <div>
+        <li id="id-${id}" class="story">
           <h2>
             <small>${components.url('https://news.ycombinator.com/item?id=' + id, score)}</small>
             ${components.url(url ? url : 'https://news.ycombinator.com/item?id=' + id, title)}
@@ -146,9 +165,13 @@ this.app = this.app || {};
           <hr>
           <details>
             <summary><small>${(kids || []).length}</small></summary>
-            ${kids ? components.comments(kids) + '<hr>' : ''}
+            <div class="comments">
+              <ul>
+                ${ (kids || []).map(kid => '<li id="id-' + kid + '" class="empty"></li>').join('') }
+              </ul>
+            </div>
           </details>
-        </div>`
+        </li>`
     }
 
 
@@ -163,7 +186,7 @@ this.app = this.app || {};
     document.title = `Hacker News (${params.user})`
 
     await updateState(state, params.filter)
-    await render(document.querySelector('#container'), components, state)
+    //await render(document.querySelector('#container'), components, state)
 
     Object.assign(app, {
       cache, state,
